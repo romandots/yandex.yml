@@ -127,13 +127,16 @@ func xmlHandler(w http.ResponseWriter, r *http.Request) {
 // fetchOffers тянет из БД текущие записи из classes
 func fetchOffers() ([]Offer, error) {
 	query := `
-        SELECT id, ` + "`string`" + ` AS name, description
+        SELECT id, string AS name, description
         FROM classes
-        WHERE (end_date IS NULL OR end_date < NOW())
-          AND (start_date IS NULL OR start_date > NOW())
+        WHERE (end_date IS NULL OR end_date >= NOW())
+          AND (start_date IS NULL OR start_date <= NOW())
           AND hidden IS NULL
           AND deleted IS NULL
     `
+	// здесь выводим финальный SQL
+	fmt.Println("DEBUG SQL:", query)
+
 	rows, err := db.Query(query)
 	if err != nil {
 		return nil, err
