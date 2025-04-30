@@ -37,6 +37,50 @@ func InitDB() (*sql.DB, error) {
 	return db, err
 }
 
+// FetchClasses тянет из БД текущие записи из classes
+func FetchClasses() ([]entity.Offer, error) {
+	query := `
+		SELECT c.id,
+			   c.string AS name,
+			   c.description,
+			   c.mon,
+			   c.tue,
+			   c.wed,
+			   c.thu,
+			   c.fri,
+			   c.sat,
+			   c.sun,
+			   s.studio_title
+		FROM classes AS c
+				 JOIN studios s on c.studio_id = s.id
+				 JOIN (
+			SELECT string, MIN(id) AS min_id
+			FROM classes
+			WHERE (start_date IS NULL OR start_date <= NOW())
+			  AND (end_date IS NULL OR end_date >= NOW())
+			  AND hidden IS NULL
+			  AND deleted IS NULL
+			GROUP BY string
+		) AS sub ON sub.min_id = c.id AND c.string = sub.string
+    `
+
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []entity.Offer
+	for rows.Next() {
+		o, err := scanClass(rows)
+		if err != nil {
+			return list, err
+		}
+		list = append(list, o)
+	}
+	return list, rows.Err()
+}
+
 // FetchPasses тянет из БД текущие записи из passes
 func FetchPasses() ([]entity.Offer, error) {
 	query := `
@@ -59,134 +103,133 @@ func FetchPasses() ([]entity.Offer, error) {
 	defer rows.Close()
 
 	var list []entity.Offer = []entity.Offer{
-		{ID: 1, Name: "Первое пробное занятие", Vendor: config.CompanyName, Price: config.FirstVisitPrice, CurrencyID: "RUR", CategoryID: 2, Picture: config.LogoUrl, URL: config.CompanyUrl},
-		{ID: 2, Name: "Разовое занятие", Vendor: config.CompanyName, Price: config.VisitPrice, CurrencyID: "RUR", CategoryID: 2, Picture: config.LogoUrl, URL: config.CompanyUrl},
+		{ID: 1, Name: "Первое пробное занятие", Description: &entity.CData{"Первый урок в любом классе"}, Vendor: config.CompanyName, Price: config.FirstVisitPrice, CurrencyID: "RUR", CategoryID: 2, Picture: config.LogoUrl, URL: config.CompanyUrl},
+		{ID: 2, Name: "Разовое занятие", Description: &entity.CData{"Одно часовое посещение в любом классе"}, Vendor: config.CompanyName, Price: config.VisitPrice, CurrencyID: "RUR", CategoryID: 2, Picture: config.LogoUrl, URL: config.CompanyUrl},
 	}
 	var id int = 3
 	for rows.Next() {
 		id++
-		var (
-			o              entity.Offer
-			desc           sql.NullString
-			price          sql.NullInt64
-			lifetime       sql.NullInt64
-			hours          sql.NullInt64
-			freeze_allowed sql.NullInt64
-			guest_visits   sql.NullInt64
-		)
-		if err := rows.Scan(
-			&o.Name, &desc, &price,
-			&lifetime, &hours, &freeze_allowed, &guest_visits,
-		); err != nil {
-			return nil, err
+		o, empty, err := scanPass(rows, id)
+		if err != nil {
+			return list, err
 		}
-
-		if !price.Valid || !desc.Valid || !lifetime.Valid || !hours.Valid {
+		if empty {
 			continue
 		}
-
-		var freezeAllowed string
-		if freeze_allowed.Valid && freeze_allowed.Int64 > 0 {
-			freezeAllowed = "Доступна «заморозка» абонемента. "
-		}
-
-		var guestVisits string
-		if guest_visits.Valid && guest_visits.Int64 > 0 {
-			guestVisits = fmt.Sprintf(" + %s для друзей",
-				common.Inflect(int(guest_visits.Int64), []string{"гостевое посещение", "гостевых посещения", "гостевых посещений"}),
-			)
-		}
-
-		var lessonsIncluded string
-		if hours.Int64 > 0 {
-			lessonsIncluded = fmt.Sprintf("Включено %s%s. ",
-				common.Inflect(int(hours.Int64), []string{"урок", "урока", "уроков"}),
-				guestVisits,
-			)
-		}
-
-		var lifetimeString string
-		if lifetime.Int64 > 0 {
-			lifetimeString = fmt.Sprintf("Срок действия: %s. ",
-				common.Inflect(int(lifetime.Int64), []string{"день", "дня", "дней"}),
-			)
-		}
-
-		o.Description = &entity.CData{Text: desc.String + ".\n" + lifetimeString + lessonsIncluded + freezeAllowed}
-
-		o.Vendor = config.CompanyName
-		o.CurrencyID = "RUR"
-		o.CategoryID = 2
-		o.Price = int(price.Int64)
-		o.ID = id
-		o.Picture = config.LogoUrl
-		o.URL = config.CompanyUrl
 		list = append(list, o)
 	}
 	return list, rows.Err()
 }
 
-// FetchClasses тянет из БД текущие записи из classes
-func FetchClasses() ([]entity.Offer, error) {
-	query := `
-		SELECT c.id, c.string AS name, c.description, c.mon, c.tue, c.wed, c.thu, c.fri, c.sat, c.sun
-		FROM classes AS c
-				 JOIN (
-			SELECT string, MIN(id) AS min_id
-			FROM classes
-			WHERE (start_date IS NULL OR start_date <= NOW())
-			  AND (end_date IS NULL OR end_date >= NOW())
-			  AND hidden IS NULL
-			  AND deleted IS NULL
-			GROUP BY string
-		) AS sub ON sub.min_id = c.id AND c.string = sub.string
-    `
-
-	rows, err := db.Query(query)
-	if err != nil {
-		return nil, err
+func scanClass(rows *sql.Rows) (entity.Offer, error) {
+	var (
+		o      entity.Offer
+		desc   sql.NullString
+		mon    sql.NullString
+		tue    sql.NullString
+		wed    sql.NullString
+		thu    sql.NullString
+		fri    sql.NullString
+		sat    sql.NullString
+		sun    sql.NullString
+		studio sql.NullString
+	)
+	if err := rows.Scan(
+		&o.ID, &o.Name, &desc, &mon, &tue, &wed, &thu, &fri, &sat, &sun, &studio,
+	); err != nil {
+		return entity.Offer{}, err
 	}
-	defer rows.Close()
 
-	var list []entity.Offer
-	for rows.Next() {
-		var (
-			o    entity.Offer
-			desc sql.NullString
-			mon  sql.NullString
-			tue  sql.NullString
-			wed  sql.NullString
-			thu  sql.NullString
-			fri  sql.NullString
-			sat  sql.NullString
-			sun  sql.NullString
+	var description string
+	schedule := getSchedule(mon, tue, wed, thu, fri, sat, sun)
+	if schedule != "" {
+		description += schedule
+		if studio.Valid {
+			description += " в студии " + studio.String
+		}
+		description += "."
+	}
+
+	if desc.Valid {
+		description += "\n" + desc.String
+	}
+
+	if len(description) > 250 {
+		description = common.SafelyTruncate(description, 250)
+	}
+
+	o.Vendor = config.CompanyName
+	o.Description = &entity.CData{Text: description}
+	o.Price = config.BasicPassPrice
+	o.Picture = config.LogoUrl
+	o.URL = config.CompanyUrl
+	o.CurrencyID = "RUR"
+	o.CategoryID = 1
+	return o, nil
+}
+
+func scanPass(rows *sql.Rows, id int) (entity.Offer, bool, error) {
+	var (
+		o              entity.Offer
+		desc           sql.NullString
+		price          sql.NullInt64
+		lifetime       sql.NullInt64
+		hours          sql.NullInt64
+		freeze_allowed sql.NullInt64
+		guest_visits   sql.NullInt64
+	)
+	if err := rows.Scan(
+		&o.Name, &desc, &price,
+		&lifetime, &hours, &freeze_allowed, &guest_visits,
+	); err != nil {
+		return entity.Offer{}, false, err
+	}
+
+	if !price.Valid || !desc.Valid || !lifetime.Valid || !hours.Valid {
+		return o, true, nil
+	}
+
+	var freezeAllowed string
+	if freeze_allowed.Valid && freeze_allowed.Int64 > 0 {
+		freezeAllowed = "Доступна «заморозка» абонемента. "
+	}
+
+	var guestVisits string
+	if guest_visits.Valid && guest_visits.Int64 > 0 {
+		guestVisits = fmt.Sprintf(" + %s для друзей",
+			common.Inflect(int(guest_visits.Int64), []string{"гостевое посещение", "гостевых посещения", "гостевых посещений"}),
 		)
-		if err := rows.Scan(
-			&o.ID, &o.Name, &desc, &mon, &tue, &wed, &thu, &fri, &sat, &sun,
-		); err != nil {
-			return nil, err
-		}
-
-		var description string
-		if desc.Valid {
-			description = desc.String
-		}
-
-		schedule := getSchedule(mon, tue, wed, thu, fri, sat, sun)
-		if schedule != "" {
-			description += "\n" + schedule
-		}
-
-		o.Description = &entity.CData{Text: description}
-		o.Vendor = config.CompanyName
-		o.Price = config.BasicPassPrice
-		o.CurrencyID = "RUR"
-		o.CategoryID = 1
-		o.Picture = config.LogoUrl
-		o.URL = config.CompanyUrl
-		list = append(list, o)
 	}
-	return list, rows.Err()
+
+	var lessonsIncluded string
+	if hours.Int64 > 0 {
+		lessonsIncluded = fmt.Sprintf("Включено %s%s. ",
+			common.Inflect(int(hours.Int64), []string{"урок", "урока", "уроков"}),
+			guestVisits,
+		)
+	}
+
+	var lifetimeString string
+	if lifetime.Int64 > 0 {
+		lifetimeString = fmt.Sprintf("Срок действия: %s. ",
+			common.Inflect(int(lifetime.Int64), []string{"день", "дня", "дней"}),
+		)
+	}
+
+	description := desc.String + ".\n" + lifetimeString + lessonsIncluded + freezeAllowed
+	if len(description) > 250 {
+		description = common.SafelyTruncate(description, 250)
+	}
+
+	o.ID = id
+	o.Description = &entity.CData{description}
+	o.Vendor = config.CompanyName
+	o.Price = int(price.Int64)
+	o.Picture = config.LogoUrl
+	o.URL = config.CompanyUrl
+	o.CurrencyID = "RUR"
+	o.CategoryID = 2
+	return o, false, nil
 }
 
 func getSchedule(mon sql.NullString, tue sql.NullString, wed sql.NullString, thu sql.NullString, fri sql.NullString, sat sql.NullString, sun sql.NullString) string {
@@ -226,10 +269,10 @@ func getSchedule(mon sql.NullString, tue sql.NullString, wed sql.NullString, thu
 		} else {
 			str += days[0]
 		}
-		str += " в " + time + "."
+		str += " в " + time
 
 		scheduleStrings = append(scheduleStrings, str)
 	}
 
-	return strings.Join(scheduleStrings, "\n")
+	return strings.Join(scheduleStrings, "; ")
 }
