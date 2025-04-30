@@ -50,18 +50,15 @@ func FetchClasses() ([]entity.Offer, error) {
 			   c.fri,
 			   c.sat,
 			   c.sun,
-			   s.studio_title
+			   s.studio_title,
+			   c.price_rate
 		FROM classes AS c
 				 JOIN studios s on c.studio_id = s.id
-				 JOIN (
-			SELECT string, MIN(id) AS min_id
-			FROM classes
-			WHERE (start_date IS NULL OR start_date <= NOW())
-			  AND (end_date IS NULL OR end_date >= NOW())
-			  AND hidden IS NULL
-			  AND deleted IS NULL
-			GROUP BY string
-		) AS sub ON sub.min_id = c.id AND c.string = sub.string
+		WHERE (start_date IS NULL OR start_date <= NOW())
+		  AND (end_date IS NULL OR end_date >= NOW())
+		  AND hidden IS NULL
+		  AND deleted IS NULL
+	      AND string IS NOT NULL
     `
 
 	rows, err := db.Query(query)
@@ -124,6 +121,7 @@ func FetchPasses() ([]entity.Offer, error) {
 func scanClass(rows *sql.Rows) (entity.Offer, error) {
 	var (
 		o      entity.Offer
+		name   string
 		desc   sql.NullString
 		mon    sql.NullString
 		tue    sql.NullString
@@ -133,34 +131,38 @@ func scanClass(rows *sql.Rows) (entity.Offer, error) {
 		sat    sql.NullString
 		sun    sql.NullString
 		studio sql.NullString
+		price  sql.NullInt64
 	)
 	if err := rows.Scan(
-		&o.ID, &o.Name, &desc, &mon, &tue, &wed, &thu, &fri, &sat, &sun, &studio,
+		&o.ID, &name, &desc, &mon, &tue, &wed, &thu, &fri, &sat, &sun, &studio, &price,
 	); err != nil {
 		return entity.Offer{}, err
+	}
+
+	if studio.Valid {
+		name += " в студии " + studio.String
 	}
 
 	var description string
 	schedule := getSchedule(mon, tue, wed, thu, fri, sat, sun)
 	if schedule != "" {
-		description += schedule
-		if studio.Valid {
-			description += " в студии " + studio.String
-		}
-		description += "."
+		description += schedule + "."
 	}
-
 	if desc.Valid {
 		description += "\n" + desc.String
 	}
-
 	if len(description) > 250 {
 		description = common.SafelyTruncate(description, 250)
 	}
 
+	if price.Valid {
+		o.Price = int(price.Int64)
+	} else {
+		o.Price = config.VisitPrice
+	}
+	o.Name = name
 	o.Vendor = config.CompanyName
 	o.Description = &entity.CData{Text: description}
-	o.Price = config.BasicPassPrice
 	o.Picture = config.LogoUrl
 	o.URL = config.CompanyUrl
 	o.CurrencyID = "RUR"

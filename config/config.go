@@ -10,10 +10,9 @@ import (
 var CompanyName = "Школа танцев «Без правил»"
 var FirstVisitPrice int
 var VisitPrice int
-var BasicPassPrice int
 
 var Categories entity.Categories = entity.Categories{[]entity.Category{
-	{ID: 1, Name: "Танцевальные классы"},
+	{ID: 1, Name: "Танцевальные классы (разовое посещение)"},
 	{ID: 2, Name: "Абонементы"},
 }}
 
@@ -42,7 +41,6 @@ func init() {
 
 	FirstVisitPrice = common.GetEnvInt("FIRST_VISIT_PRICE", 300)
 	VisitPrice = common.GetEnvInt("VISIT_PRICE", 700)
-	BasicPassPrice = common.GetEnvInt("BASIC_PASS_PRICE", 4300)
 	DatabaseConfig = &DBConfig{
 		Host:     common.GetEnvString("DB_HOST", "localhost"),
 		Port:     common.GetEnvString("DB_PORT", "3306"),
