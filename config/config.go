@@ -28,6 +28,8 @@ type DBConfig struct {
 var DatabaseConfig *DBConfig
 var Port string
 var YandexPath string
+var LogoUrl string
+var CompanyUrl string
 
 func init() {
 	// Попробуем загрузить .env из текущей папки.
@@ -50,4 +52,6 @@ func init() {
 	}
 	Port = common.GetEnvString("PORT", "9999")
 	YandexPath = common.GetEnvString("YANDEX_PATH", "/yandex.yml")
+	LogoUrl = common.GetEnvString("LOGO_URL", "https://bezpravil.net/img/logo.png")
+	CompanyUrl = common.GetEnvString("COMPANY_URL", "https://bezpravil.net")
 }

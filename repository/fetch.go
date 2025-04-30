@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"time"
 	"yandex-export/common"
@@ -25,6 +26,11 @@ func InitDB() (*sql.DB, error) {
 	db, err = sql.Open("mysql", dsn)
 	if err != nil {
 		log.Fatalf("Ошибка подключения к БД: %v", err)
+	}
+
+	if err := db.Ping(); err != nil {
+		log.Fatalf("Ошибка подключения к БД: %v", err)
+		os.Exit(1)
 	}
 	log.Println("Подключились к БД")
 
@@ -53,8 +59,8 @@ func FetchPasses() ([]entity.Offer, error) {
 	defer rows.Close()
 
 	var list []entity.Offer = []entity.Offer{
-		{ID: 1, Name: "Первое пробное занятие", Vendor: config.CompanyName, Price: config.FirstVisitPrice, CurrencyID: "RUR", CategoryID: 2},
-		{ID: 2, Name: "Разовое занятие", Vendor: config.CompanyName, Price: config.VisitPrice, CurrencyID: "RUR", CategoryID: 2},
+		{ID: 1, Name: "Первое пробное занятие", Vendor: config.CompanyName, Price: config.FirstVisitPrice, CurrencyID: "RUR", CategoryID: 2, Picture: config.LogoUrl, URL: config.CompanyUrl},
+		{ID: 2, Name: "Разовое занятие", Vendor: config.CompanyName, Price: config.VisitPrice, CurrencyID: "RUR", CategoryID: 2, Picture: config.LogoUrl, URL: config.CompanyUrl},
 	}
 	var id int = 3
 	for rows.Next() {
@@ -113,8 +119,8 @@ func FetchPasses() ([]entity.Offer, error) {
 		o.CategoryID = 2
 		o.Price = int(price.Int64)
 		o.ID = id
-		o.Picture = ""
-		o.URL = ""
+		o.Picture = config.LogoUrl
+		o.URL = config.CompanyUrl
 		list = append(list, o)
 	}
 	return list, rows.Err()
@@ -176,8 +182,8 @@ func FetchClasses() ([]entity.Offer, error) {
 		o.Price = config.BasicPassPrice
 		o.CurrencyID = "RUR"
 		o.CategoryID = 1
-		o.Picture = ""
-		o.URL = ""
+		o.Picture = config.LogoUrl
+		o.URL = config.CompanyUrl
 		list = append(list, o)
 	}
 	return list, rows.Err()
