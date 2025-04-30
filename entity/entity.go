@@ -2,11 +2,6 @@ package entity
 
 import "encoding/xml"
 
-// Обёртка для CDATA
-type CData struct {
-	Text string `xml:",cdata"`
-}
-
 type YmlCatalog struct {
 	XMLName xml.Name `xml:"yml_catalog"`
 	Date    string   `xml:"date,attr"`
@@ -34,14 +29,15 @@ type Offers struct {
 }
 
 type Offer struct {
-	XMLName     xml.Name `xml:"offer"`
-	ID          int      `xml:"id,attr"`
-	Vendor      string   `xml:"vendor"`
-	Price       int      `xml:"price"`
-	CurrencyID  string   `xml:"currencyId"`
-	CategoryID  int      `xml:"categoryId"`
-	Picture     string   `xml:"picture"`
-	URL         string   `xml:"url"`
-	Name        string   `xml:"name"`
-	Description *CData   `xml:"description"`
+	XMLName          xml.Name `xml:"offer"`
+	ID               int      `xml:"id,attr"`
+	Vendor           string   `xml:"vendor"`
+	Price            int      `xml:"price"`
+	CurrencyID       string   `xml:"currencyId"`
+	CategoryID       int      `xml:"categoryId"`
+	Picture          string   `xml:"picture"`
+	URL              string   `xml:"url"`
+	Name             string   `xml:"name"`
+	Description      string   `xml:"description"`
+	ShortDescription string   `xml:"shortDescription"`
 }

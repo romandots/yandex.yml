@@ -100,8 +100,28 @@ func FetchPasses() ([]entity.Offer, error) {
 	defer rows.Close()
 
 	var list []entity.Offer = []entity.Offer{
-		{ID: 1, Name: "Первое пробное занятие", Description: &entity.CData{"Первый урок в любом классе"}, Vendor: config.CompanyName, Price: config.FirstVisitPrice, CurrencyID: "RUR", CategoryID: 2, Picture: config.LogoUrl, URL: config.CompanyUrl},
-		{ID: 2, Name: "Разовое занятие", Description: &entity.CData{"Одно часовое посещение в любом классе"}, Vendor: config.CompanyName, Price: config.VisitPrice, CurrencyID: "RUR", CategoryID: 2, Picture: config.LogoUrl, URL: config.CompanyUrl},
+		{
+			ID:          1,
+			Name:        "Первое пробное занятие",
+			Description: "Первый урок в любом классе",
+			Vendor:      config.CompanyName,
+			Price:       config.FirstVisitPrice,
+			CurrencyID:  "RUR",
+			CategoryID:  2,
+			Picture:     config.ClassDefaultPicture,
+			URL:         config.ClassDefaultLink,
+		},
+		{
+			ID:          2,
+			Name:        "Разовое занятие",
+			Description: "Одно часовое посещение в любом классе",
+			Vendor:      config.CompanyName,
+			Price:       config.VisitPrice,
+			CurrencyID:  "RUR",
+			CategoryID:  2,
+			Picture:     config.ClassDefaultPicture,
+			URL:         config.ClassDefaultLink,
+		},
 	}
 	var id int = 3
 	for rows.Next() {
@@ -145,26 +165,28 @@ func scanClass(rows *sql.Rows) (entity.Offer, error) {
 
 	var description string
 	schedule := getSchedule(mon, tue, wed, thu, fri, sat, sun)
-	if schedule != "" {
-		description += schedule + "."
-	}
-	if desc.Valid {
-		description += "\n" + desc.String
-	}
-	if len(description) > 250 {
-		description = common.SafelyTruncate(description, 250)
+	if desc.Valid && desc.String != "" {
+		description = desc.String + "\n"
 	}
 
+	fullDescription := description + schedule
+	shortDescription := common.SafelyTruncate(schedule, 250)
+
+	o.Name = common.SafelyTruncate(name, 250)
+	o.Vendor = config.CompanyName
+	o.Description = fullDescription
+	if len(fullDescription) > 250 {
+		o.ShortDescription = shortDescription
+	} else {
+		o.ShortDescription = fullDescription
+	}
 	if price.Valid {
 		o.Price = int(price.Int64)
 	} else {
 		o.Price = config.VisitPrice
 	}
-	o.Name = name
-	o.Vendor = config.CompanyName
-	o.Description = &entity.CData{Text: description}
-	o.Picture = config.LogoUrl
-	o.URL = config.CompanyUrl
+	o.Picture = config.ClassDefaultPicture
+	o.URL = config.ClassDefaultLink
 	o.CurrencyID = "RUR"
 	o.CategoryID = 1
 	return o, nil
@@ -173,6 +195,7 @@ func scanClass(rows *sql.Rows) (entity.Offer, error) {
 func scanPass(rows *sql.Rows, id int) (entity.Offer, bool, error) {
 	var (
 		o              entity.Offer
+		name           string
 		desc           sql.NullString
 		price          sql.NullInt64
 		lifetime       sql.NullInt64
@@ -181,7 +204,7 @@ func scanPass(rows *sql.Rows, id int) (entity.Offer, bool, error) {
 		guest_visits   sql.NullInt64
 	)
 	if err := rows.Scan(
-		&o.Name, &desc, &price,
+		&name, &desc, &price,
 		&lifetime, &hours, &freeze_allowed, &guest_visits,
 	); err != nil {
 		return entity.Offer{}, false, err
@@ -218,17 +241,21 @@ func scanPass(rows *sql.Rows, id int) (entity.Offer, bool, error) {
 		)
 	}
 
-	description := desc.String + lifetimeString + lessonsIncluded + freezeAllowed
-	if len(description) > 250 {
-		description = common.SafelyTruncate(description, 250)
-	}
+	fullDescription := desc.String + lifetimeString + lessonsIncluded + freezeAllowed
+	shortDescription := common.SafelyTruncate(desc.String, 250)
 
 	o.ID = id
-	o.Description = &entity.CData{description}
+	o.Name = common.SafelyTruncate(name, 250)
+	o.Description = fullDescription
+	if len(fullDescription) > 250 {
+		o.ShortDescription = shortDescription
+	} else {
+		o.ShortDescription = fullDescription
+	}
 	o.Vendor = config.CompanyName
 	o.Price = int(price.Int64)
-	o.Picture = config.LogoUrl
-	o.URL = config.CompanyUrl
+	o.Picture = config.PassDefaultPicture
+	o.URL = config.PassDefaultLink
 	o.CurrencyID = "RUR"
 	o.CategoryID = 2
 	return o, false, nil
