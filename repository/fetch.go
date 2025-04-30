@@ -191,13 +191,13 @@ func scanPass(rows *sql.Rows, id int) (entity.Offer, bool, error) {
 
 	var freezeAllowed string
 	if freeze_allowed.Valid && freeze_allowed.Int64 > 0 {
-		freezeAllowed = "Доступна «заморозка» абонемента. "
+		freezeAllowed = "C возможностью заморозки на месяц."
 	}
 
 	var guestVisits string
 	if guest_visits.Valid && guest_visits.Int64 > 0 {
 		guestVisits = fmt.Sprintf(" + %s для друзей",
-			common.Inflect(int(guest_visits.Int64), []string{"гостевое посещение", "гостевых посещения", "гостевых посещений"}),
+			common.Inflect(int(guest_visits.Int64), []string{"гостевое", "гостевых", "гостевых"}),
 		)
 	}
 
@@ -211,12 +211,12 @@ func scanPass(rows *sql.Rows, id int) (entity.Offer, bool, error) {
 
 	var lifetimeString string
 	if lifetime.Int64 > 0 {
-		lifetimeString = fmt.Sprintf("Срок действия: %s. ",
+		lifetimeString = fmt.Sprintf(" на %s. ",
 			common.Inflect(int(lifetime.Int64), []string{"день", "дня", "дней"}),
 		)
 	}
 
-	description := desc.String + ".\n" + lifetimeString + lessonsIncluded + freezeAllowed
+	description := desc.String + lifetimeString + lessonsIncluded + freezeAllowed
 	if len(description) > 250 {
 		description = common.SafelyTruncate(description, 250)
 	}
