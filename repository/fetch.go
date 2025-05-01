@@ -41,8 +41,9 @@ func InitDB() (*sql.DB, error) {
 func FetchClasses() ([]entity.Offer, error) {
 	query := `
 		SELECT c.id,
-			   c.string AS name,
-			   c.description,
+			   c.string       AS name,
+			   c.description  AS class_description,
+			   st.description AS style_description,
 			   c.mon,
 			   c.tue,
 			   c.wed,
@@ -51,14 +52,16 @@ func FetchClasses() ([]entity.Offer, error) {
 			   c.sat,
 			   c.sun,
 			   s.studio_title,
-			   c.price_rate
-		FROM classes AS c
+			   c.price_rate AS price
+		FROM classes c
 				 JOIN studios s on c.studio_id = s.id
-		WHERE (start_date IS NULL OR start_date <= NOW())
-		  AND (end_date IS NULL OR end_date >= NOW())
-		  AND hidden IS NULL
-		  AND deleted IS NULL
-	      AND string IS NOT NULL
+				 LEFT JOIN styles_classes sc on c.id = sc.class_id
+				 LEFT JOIN styles st ON st.id = sc.style_id
+		WHERE NOW() BETWEEN COALESCE(c.start_date, '1970-01-01')
+			AND COALESCE(c.end_date, '9999-12-31')
+		  AND c.hidden IS NULL
+		  AND c.deleted IS NULL
+		  AND c.string IS NOT NULL
     `
 
 	rows, err := db.Query(query)
@@ -140,21 +143,22 @@ func FetchPasses() ([]entity.Offer, error) {
 
 func scanClass(rows *sql.Rows) (entity.Offer, error) {
 	var (
-		o      entity.Offer
-		name   string
-		desc   sql.NullString
-		mon    sql.NullString
-		tue    sql.NullString
-		wed    sql.NullString
-		thu    sql.NullString
-		fri    sql.NullString
-		sat    sql.NullString
-		sun    sql.NullString
-		studio sql.NullString
-		price  sql.NullInt64
+		o         entity.Offer
+		name      string
+		classDesc sql.NullString
+		styleDesc sql.NullString
+		mon       sql.NullString
+		tue       sql.NullString
+		wed       sql.NullString
+		thu       sql.NullString
+		fri       sql.NullString
+		sat       sql.NullString
+		sun       sql.NullString
+		studio    sql.NullString
+		price     sql.NullInt64
 	)
 	if err := rows.Scan(
-		&o.ID, &name, &desc, &mon, &tue, &wed, &thu, &fri, &sat, &sun, &studio, &price,
+		&o.ID, &name, &classDesc, &styleDesc, &mon, &tue, &wed, &thu, &fri, &sat, &sun, &studio, &price,
 	); err != nil {
 		return entity.Offer{}, err
 	}
@@ -165,8 +169,10 @@ func scanClass(rows *sql.Rows) (entity.Offer, error) {
 
 	var description string
 	schedule := getSchedule(mon, tue, wed, thu, fri, sat, sun)
-	if desc.Valid && desc.String != "" {
-		description = desc.String + "\n"
+	if classDesc.Valid && classDesc.String != "" {
+		description = classDesc.String + "\n"
+	} else if styleDesc.Valid && styleDesc.String != "" {
+		description = styleDesc.String + "\n"
 	}
 
 	fullDescription := description + schedule
