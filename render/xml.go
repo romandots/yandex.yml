@@ -3,6 +3,7 @@ package render
 import (
 	"encoding/xml"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 	"yandex-export/config"
@@ -12,6 +13,24 @@ import (
 
 // XmlHandler генерирует YML и отдаёт его в ответе
 func XmlHandler(w http.ResponseWriter, sr *http.Request) {
+	var passLink, classLink string
+	params := sr.URL.Query()
+	if len(params) > 0 {
+		passLink = params.Get("passlink")
+		classLink = params.Get("classlink")
+	}
+
+	if passLink == "" {
+		passLink = config.PassDefaultLink
+	}
+
+	if classLink == "" {
+		classLink = config.ClassDefaultLink
+	}
+
+	log.Println("passLink:", passLink)
+	log.Println("classLink:", classLink)
+
 	classes, err := repository.FetchClasses()
 	if err != nil {
 		http.Error(w, fmt.Sprintf("fetchClasses error: %v", err), http.StatusInternalServerError)

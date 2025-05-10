@@ -40,28 +40,29 @@ func InitDB() (*sql.DB, error) {
 // FetchClasses тянет из БД текущие записи из classes
 func FetchClasses() ([]entity.Offer, error) {
 	query := `
-		SELECT c.id,
-			   c.string       AS name,
-			   c.description  AS class_description,
-			   st.description AS style_description,
-			   c.mon,
-			   c.tue,
-			   c.wed,
-			   c.thu,
-			   c.fri,
-			   c.sat,
-			   c.sun,
-			   s.studio_title,
-			   c.price_rate AS price
-		FROM classes c
-				 JOIN studios s on c.studio_id = s.id
-				 LEFT JOIN styles_classes sc on c.id = sc.class_id
-				 LEFT JOIN styles st ON st.id = sc.style_id
-		WHERE NOW() BETWEEN COALESCE(c.start_date, '1970-01-01')
-			AND COALESCE(c.end_date, '9999-12-31')
-		  AND c.hidden IS NULL
-		  AND c.deleted IS NULL
-		  AND c.string IS NOT NULL
+		SELECT
+  c.id,
+  c.string       AS name,
+  c.description  AS class_description,
+  (
+    SELECT st.description
+    FROM styles_classes AS sc
+    JOIN styles          AS st ON st.id = sc.style_id
+    WHERE sc.class_id = c.id
+    ORDER BY sc.id DESC, st.id DESC
+    LIMIT 1
+  ) AS style_description,
+  c.mon, c.tue, c.wed, c.thu, c.fri, c.sat, c.sun,
+  s.studio_title,
+		c.price_rate
+FROM classes AS c
+JOIN studios AS s
+  ON c.studio_id = s.id
+WHERE c.hidden   IS NULL
+  AND c.deleted  IS NULL
+  AND c.string   IS NOT NULL
+  AND (c.start_date IS NULL OR c.start_date <= NOW())
+  AND (c.end_date   IS NULL OR c.end_date   >= NOW());
     `
 
 	rows, err := db.Query(query)
@@ -111,8 +112,8 @@ func FetchPasses() ([]entity.Offer, error) {
 			Price:       config.FirstVisitPrice,
 			CurrencyID:  "RUR",
 			CategoryID:  2,
-			Picture:     config.ClassDefaultPicture,
-			URL:         config.ClassDefaultLink,
+			Picture:     config.PassDefaultPicture,
+			URL:         config.PassDefaultLink,
 		},
 		{
 			ID:          2,
@@ -122,8 +123,8 @@ func FetchPasses() ([]entity.Offer, error) {
 			Price:       config.VisitPrice,
 			CurrencyID:  "RUR",
 			CategoryID:  2,
-			Picture:     config.ClassDefaultPicture,
-			URL:         config.ClassDefaultLink,
+			Picture:     config.PassDefaultPicture,
+			URL:         config.PassDefaultLink,
 		},
 	}
 	var id int = 3
