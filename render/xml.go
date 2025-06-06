@@ -1,15 +1,21 @@
 package render
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/xml"
 	"fmt"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 	"yandex-export/config"
 	"yandex-export/entity"
 	"yandex-export/repository"
 )
+
+var currentVersion entity.Version
+var mu = &sync.Mutex{}
 
 // XmlHandler генерирует YML и отдаёт его в ответе
 func XmlHandler(w http.ResponseWriter, sr *http.Request) {
@@ -48,7 +54,6 @@ func XmlHandler(w http.ResponseWriter, sr *http.Request) {
 	offers = append(offers, passes...)
 
 	catalog := entity.YmlCatalog{
-		Date:    time.Now().Format("2006-01-02T15:04-07:00"),
 		Name:    config.CompanyName,
 		Company: config.CompanyName,
 		Shop: entity.Shop{
@@ -56,6 +61,23 @@ func XmlHandler(w http.ResponseWriter, sr *http.Request) {
 			Offers:     entity.Offers{Offer: offers},
 		},
 	}
+
+	outputWithoutDate, err := xml.MarshalIndent(catalog, "", "  ")
+	if err != nil {
+		http.Error(w, fmt.Sprintf("XML marshal error: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	hash := HashBytes(outputWithoutDate)
+	mu.Lock()
+	if currentVersion.Hash != hash {
+		currentVersion.PubDate = time.Now().Format("2006-01-02T15:04-07:00")
+		currentVersion.Hash = hash
+		log.Println("Updating version: " + currentVersion.PubDate)
+	}
+	mu.Unlock()
+
+	catalog.Date = currentVersion.PubDate
 
 	output, err := xml.MarshalIndent(catalog, "", "  ")
 	if err != nil {
@@ -66,4 +88,9 @@ func XmlHandler(w http.ResponseWriter, sr *http.Request) {
 	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
 	w.Write([]byte(xml.Header))
 	w.Write(output)
+}
+
+func HashBytes(b []byte) string {
+	hash := sha256.Sum256(b)
+	return hex.EncodeToString(hash[:])
 }

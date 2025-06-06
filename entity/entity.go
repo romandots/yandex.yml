@@ -2,6 +2,11 @@ package entity
 
 import "encoding/xml"
 
+type Version struct {
+	Hash    string
+	PubDate string
+}
+
 type YmlCatalog struct {
 	XMLName xml.Name `xml:"yml_catalog"`
 	Date    string   `xml:"date,attr"`
