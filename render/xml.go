@@ -53,7 +53,7 @@ func XmlHandler(w http.ResponseWriter, sr *http.Request) {
 	offers = append(offers, classes...)
 	offers = append(offers, passes...)
 
-	catalog := entity.YmlCatalog{
+	catalogWithoutDate := entity.YmlCatalog{
 		Name:    config.CompanyName,
 		Company: config.CompanyName,
 		Shop: entity.Shop{
@@ -62,7 +62,7 @@ func XmlHandler(w http.ResponseWriter, sr *http.Request) {
 		},
 	}
 
-	outputWithoutDate, err := xml.MarshalIndent(catalog, "", "  ")
+	outputWithoutDate, err := xml.MarshalIndent(catalogWithoutDate, "", "  ")
 	if err != nil {
 		http.Error(w, fmt.Sprintf("XML marshal error: %v", err), http.StatusInternalServerError)
 		return
@@ -77,9 +77,17 @@ func XmlHandler(w http.ResponseWriter, sr *http.Request) {
 	}
 	mu.Unlock()
 
-	catalog.Date = currentVersion.PubDate
+	catalogWithDate := entity.YmlCatalog{
+		Name:    config.CompanyName,
+		Company: config.CompanyName,
+		Date:    currentVersion.PubDate,
+		Shop: entity.Shop{
+			Categories: config.Categories,
+			Offers:     entity.Offers{Offer: offers},
+		},
+	}
 
-	output, err := xml.MarshalIndent(catalog, "", "  ")
+	outputWithDate, err := xml.MarshalIndent(catalogWithDate, "", "  ")
 	if err != nil {
 		http.Error(w, fmt.Sprintf("XML marshal error: %v", err), http.StatusInternalServerError)
 		return
@@ -87,7 +95,7 @@ func XmlHandler(w http.ResponseWriter, sr *http.Request) {
 
 	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
 	w.Write([]byte(xml.Header))
-	w.Write(output)
+	w.Write(outputWithDate)
 }
 
 func HashBytes(b []byte) string {
