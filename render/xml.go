@@ -26,12 +26,12 @@ func XmlHandler(w http.ResponseWriter, sr *http.Request) {
 		classLink = params.Get("classlink")
 	}
 
-	if passLink == "" {
-		passLink = config.PassDefaultLink
+	if passLink != "" {
+		config.PassDefaultLink = passLink
 	}
 
-	if classLink == "" {
-		classLink = config.ClassDefaultLink
+	if classLink != "" {
+		config.ClassDefaultLink = classLink
 	}
 
 	log.Println("passLink:", passLink)
