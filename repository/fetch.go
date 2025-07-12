@@ -10,11 +10,16 @@ import (
 	"yandex-export/common"
 	"yandex-export/config"
 	"yandex-export/entity"
+	"yandex-export/images"
 )
 
 var db *sql.DB
+var imageManager *images.ImageManager
 
 func InitDB() (*sql.DB, error) {
+	// Initialize image manager
+	imageManager = images.NewImageManager()
+
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4",
 		config.DatabaseConfig.User,
 		config.DatabaseConfig.Password,
@@ -192,7 +197,12 @@ func scanClass(rows *sql.Rows) (entity.Offer, error) {
 	} else {
 		o.Price = config.VisitPrice
 	}
-	o.Picture = config.ClassDefaultPicture
+	// Try to get a random image for category 1, fallback to default if no images available
+	if randomImage, err := imageManager.GetRandomImage(1); err == nil {
+		o.Picture = randomImage
+	} else {
+		o.Picture = config.ClassDefaultPicture
+	}
 	o.URL = config.ClassDefaultLink
 	o.CurrencyID = "RUR"
 	o.CategoryID = 1
@@ -311,4 +321,26 @@ func getSchedule(mon sql.NullString, tue sql.NullString, wed sql.NullString, thu
 	}
 
 	return strings.Join(scheduleStrings, "; ")
+}
+
+// getRandomImageForCategory returns a random image for the given category ID
+// Falls back to default picture if no images are available
+func getRandomImageForCategory(categoryID int) string {
+	if imageManager == nil {
+		// Fallback to default if image manager is not initialized
+		if categoryID == 1 {
+			return config.ClassDefaultPicture
+		}
+		return config.PassDefaultPicture
+	}
+
+	if randomImage, err := imageManager.GetRandomImage(categoryID); err == nil {
+		return randomImage
+	}
+
+	// Fallback to default picture
+	if categoryID == 1 {
+		return config.ClassDefaultPicture
+	}
+	return config.PassDefaultPicture
 }

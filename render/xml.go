@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"sync"
 	"time"
 	"yandex-export/config"
@@ -53,22 +54,7 @@ func XmlHandler(w http.ResponseWriter, sr *http.Request) {
 	offers = append(offers, classes...)
 	offers = append(offers, passes...)
 
-	catalogWithoutDate := entity.YmlCatalog{
-		Name:    config.CompanyName,
-		Company: config.CompanyName,
-		Shop: entity.Shop{
-			Categories: config.Categories,
-			Offers:     entity.Offers{Offer: offers},
-		},
-	}
-
-	outputWithoutDate, err := xml.MarshalIndent(catalogWithoutDate, "", "  ")
-	if err != nil {
-		http.Error(w, fmt.Sprintf("XML marshal error: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	hash := HashBytes(outputWithoutDate)
+	hash := HashOffers(offers)
 	mu.Lock()
 	if currentVersion.Hash != hash {
 		currentVersion.PubDate = time.Now().Format("2006-01-02T15:04-07:00")
@@ -101,4 +87,35 @@ func XmlHandler(w http.ResponseWriter, sr *http.Request) {
 func HashBytes(b []byte) string {
 	hash := sha256.Sum256(b)
 	return hex.EncodeToString(hash[:])
+}
+
+// HashOffers creates a hash based on the offers data from database
+func HashOffers(offers []entity.Offer) string {
+	// Sort offers by ID to ensure consistent hashing
+	sort.Slice(offers, func(i, j int) bool {
+		return offers[i].ID < offers[j].ID
+	})
+
+	hasher := sha256.New()
+
+	for _, offer := range offers {
+		// Include key fields that represent the data state
+		fmt.Fprintf(hasher, "%d|%s|%s|%s|%d|%d|%s|%s|",
+			offer.ID,
+			offer.Name,
+			offer.Description,
+			offer.Vendor,
+			offer.Price,
+			offer.CategoryID,
+			offer.CurrencyID,
+			offer.URL,
+		)
+
+		// Include ShortDescription if it exists
+		if offer.ShortDescription != "" {
+			fmt.Fprintf(hasher, "%s|", offer.ShortDescription)
+		}
+	}
+
+	return hex.EncodeToString(hasher.Sum(nil))
 }
